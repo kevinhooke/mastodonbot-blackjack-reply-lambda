@@ -17,7 +17,7 @@ exports.updateDbStatus = function(lastUpdatedKey, lastReplyId) {
     let now = new Date().getTime().toString();
 
     let params = {
-        TableName: "mastodonbotreplies",
+        TableName: "mastodonbot-blackjack-replies",
         Key: {
             "statusKey": lastUpdatedKey
         },
@@ -49,7 +49,7 @@ exports.getLastDbStatus = function(lastStatusKey) {
     //ScanIndexForward: false to return in descending order
     //condition > 0 doesn't have much value here but we need to specify some condition for a query
     let params = {
-        TableName: "mastodonbotreplies",
+        TableName: "mastodonbot-blackjack-replies",
         KeyConditionExpression : 'statusKey = :status',
         ExpressionAttributeValues : {
             ':status' : lastStatusKey

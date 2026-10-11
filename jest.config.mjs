@@ -152,9 +152,12 @@ export default {
   // ],
 
   // An array of regexp pattern strings that are matched against all test paths, matched tests are skipped
-  // testPathIgnorePatterns: [
-  //   "/node_modules/"
-  // ],
+  // tests/integration call the real Mastodon server in config/config-mastodon.json,
+  // so are only run with 'npm run test:integration'
+  testPathIgnorePatterns: [
+    "/node_modules/",
+    "/tests/integration/"
+  ],
 
   // The regexp pattern or array of patterns that Jest uses to detect test files
   // testRegex: [],

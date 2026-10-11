@@ -5,22 +5,6 @@ let Mastodon = require('mastodon-api');
 
 exports.queryTimeline = async () => {
 
-    // let axiosMastodon = axios.create({
-    //     baseURL: 'https://botsin.space/api/v1',
-    //     headers: {
-    //       'Authorization': `Bearer ${config['access-token']}`,
-    //       'Accept-Encoding': 'gzip'
-    //     }
-    //   });
-
-    //   let result = await axiosMastodon.get('/timelines/home',
-    //     { 'decompress': true, responseType: "arraybuffer" });
-
-    //   let decompressed = await ungzip(result.data);
-
-    //let result = await request.get('https://botsin.space/api/v1/timelines/home');
-    //return result;
-
     const M = new Mastodon({
       access_token: config['access-token'],
       api_url: config['mastodon-server'] + '/api/v1/',

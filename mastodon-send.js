@@ -1,5 +1,6 @@
 let Mastodon = require('mastodon-api');
 let config = require('./config/config-mastodon.json');
+let mastodonResponse = require('./mastodon-response.js');
 
 exports.postMastodon = async (replyToStatusId, status) => {
 
@@ -8,14 +9,9 @@ exports.postMastodon = async (replyToStatusId, status) => {
         api_url: config['mastodon-server'] + '/api/v1/',
     });
 
-    let promise = new Promise( (resolve, reject) => M.post('statuses', {
+    let resp = await M.post('statuses', {
         "status" : status.text,
         "in_reply_to_id" : replyToStatusId
-        })
-        .then((resp) => {
-            console.log(resp.data);
-            resolve(resp.data);
-        })
-    );
-    return promise;
+        });
+    return mastodonResponse.checkResponse(resp, 'Post reply');
 }

@@ -1,20 +1,26 @@
 let lastStatusQuery = require('./db_status.js');
-let replytext = require('./replyMessages.json');
-let textadventure = require('./textadventure');
 let mastodonReplies = require('./mastodon-queryMentions.js');
 let mastodonSend = require('./mastodon-send.js');
+let blackjackGameplay = require('./blackjack-gameplay.js');
 let config = require('./config/config-mastodon.json');
 
-exports.handler = async (event) => {
+// Mastodon ids are numeric strings that can exceed Number precision, and comparing
+// them as strings is wrong when lengths differ ('9' > '10'), so compare as BigInt
+const compareIds = (a, b) => {
+    let diff = BigInt(a) - BigInt(b);
+    return diff > 0n ? 1 : (diff < 0n ? -1 : 0);
+}
 
-    console.log('lambda-mastodonreplies called');
+exports.handler = async () => {
+
+    console.log('mastodonbot-blackjack-reply.lambda-mastodonreplies called');
 
     let data = await lastStatusQuery.getLastDbStatus('lastStatusId');
 
         console.log("Retrieved from table, data: " + JSON.stringify(data));
-        let lastRepliedToStatusId = 0;
+        let lastRepliedToStatusId = '0';
         if(data != undefined && data.Count > 0){
-            lastRepliedToStatusId = data.Items[0].lastReplyId;
+            lastRepliedToStatusId = String(data.Items[0].lastReplyId);
         }
 
         console.log("lastRepliedToStatusId: " + lastRepliedToStatusId);
@@ -25,67 +31,61 @@ exports.handler = async (event) => {
 
         let repliesProcessed = 0;
         if(lastReplies.length > 0){
-            //reply to first found in list, process any other replies later on next run
-            let mostRecentIdRepliedTo = 0;
-            for(let reply of lastReplies){
-                if(reply.id > lastRepliedToStatusId){
+            //Mastodon returns newest first; play moves in the order players sent them
+            let repliesOldestFirst = [...lastReplies].sort((a, b) => compareIds(a.id, b.id));
+
+            for(let reply of repliesOldestFirst){
+                if(compareIds(reply.id, lastRepliedToStatusId) > 0){
                     let replyToAccount = reply.account.acct;
                     console.log(`Reply id [${reply.id}] is after last acknowledged id: ${lastRepliedToStatusId} from: ${replyToAccount}`);
-                    if(reply.id > mostRecentIdRepliedTo){
-                        mostRecentIdRepliedTo = reply.id;
-                    }
 
                     let replyToBotText = reply.status.content;
                     console.log(`reply text: ${replyToBotText}`);
+
                     let textReply = `@${replyToAccount} `;
-            
-                    let direction = textadventure.adventureTextRequested(replyToBotText);
-                    console.log(`Adventure reply text: ${direction}`);
-                    if(direction !== ''){
-                        textReply = textReply + 'You go ' + direction
-                            + '. ' + textadventure.generateTextAdventure(replyToBotText);
+                    try {
+                        let gameplayCommand = blackjackGameplay.parseCommand(replyToBotText);
+                        //account is the key for the player's game state
+                        textReply = textReply + await blackjackGameplay.playTurn(replyToAccount, gameplayCommand);
                     }
-                    else{
-                        textReply = textReply + module.exports.getTextReply();
+                    catch(err) {
+                        console.log(`Call to game lambda failed: ${err}`);
+                        textReply = textReply + 'Oops, something went wrong, ' + new Date().toDateString();
                     }
-            
-                    var status = ({
+
+                    let status = ({
                         'text': textReply
                     });
-            
+
                     if (config['send-enabled'] === "true") {
                         console.log("config.send-enabled: true: sending reply ...");
-            
-                        //send reply with Mastodon api
+
+                        //send reply with Mastodon api. If this fails, the error ends this run
+                        //and the reply is retried next run, as its id has not been saved yet
                         let result = await mastodonSend.postMastodon(reply.status.id, status);
-                        console.log(`postMastodon result: ${result}`);
+                        console.log(`postMastodon result: ${JSON.stringify(result)}`);
+
+                        //save progress after each reply, so a failure later in this run
+                        //doesn't replay moves that were already played and replied to
+                        let updateResult = await lastStatusQuery.updateDbStatus('lastStatusId', reply.id);
+                        console.log(`updateDbStatus result: ${JSON.stringify(updateResult)}`);
                     }
                     else {
-                        console.log("config.send-enabled: false, not sending reply");
+                        console.log("config.send-enabled: false, not sending reply or updating last replied to id");
                     }
                     console.log("reply: " + JSON.stringify(status));
+                    lastRepliedToStatusId = reply.id;
                     repliesProcessed = repliesProcessed + 1;
                 }
                 else{
                     console.log(`Reply id [${reply.id}] is before last acknowledged id: ${lastRepliedToStatusId}, ignoring`);
                 }
             }
-
-            if(mostRecentIdRepliedTo > 0){
-                //update last replied to id with the most recent (highest) in this last processed group
-                if(config['send-enabled'] === 'true'){
-                    let updateResult = await lastStatusQuery.updateDbStatus('lastStatusId', mostRecentIdRepliedTo);
-                    console.log(`updateDbStatus result: ${JSON.stringify(updateResult)}`);
-                }
-                else{
-                    console.log('Skipping updateDbStatus, config.send-enabled is false');
-                }
-            }
         }
         else{
             console.log("... no more recent statuses yet, skipping");
         }
-        
+
         let result = {
             status: '',
             repliesProcessed: repliesProcessed
@@ -100,18 +100,4 @@ exports.handler = async (event) => {
             result.status = 'No replies processed';
         }
         return result;
-}
-
-exports.nextIntInRange = function(high){
-    let next = Math.floor(Math.random() * high);
-    console.log('next: ' + next);
-    return next;
-}
-
-exports.getTextReply = function(){
-    let next = this.nextIntInRange(31);
-    console.log('next msg index: ' + next);
-    let nextMsg = replytext[next];
-    console.log('Next msg: ' + nextMsg);
-    return nextMsg;
 }

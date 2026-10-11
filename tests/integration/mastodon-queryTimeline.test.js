@@ -1,4 +1,4 @@
-let query = require('../mastodon-queryTimeline');
+let query = require('../../mastodon-queryTimeline');
 
 test('tests queryTimeline returns results', async () => {
     let result = await query.queryTimeline();

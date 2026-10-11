@@ -1,4 +1,4 @@
-let query = require('../mastodon-queryMentions');
+let query = require('../../mastodon-queryMentions');
 
 test('tests queryMentions returns results', async () => {
     let result = await query.queryMentions();
